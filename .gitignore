@@ -1,0 +1,15 @@
+# 本地浏览器测试配置
+.chrome-*/
+.chrome-profile/
+.chrome-cdp/
+.chrome-final/
+
+# 临时截图与测试产物
+shot-*.png
+*.log
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
