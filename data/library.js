@@ -29,30 +29,3 @@ window.INTERVIEW_BANK = [
   { cat: "项目", q: "为什么从 Java 转 AI？", a: "不要贬低 Java。讲动机（看到 AI 落地瓶颈在工程化）、行动（补 Python/LLM/RAG/Agent，做三个项目）、差异化（高并发/微服务/Spring 生态 + AI 应用）、目标（做企业级 AI 平台/应用）。30 秒内讲完，留钩子。" },
   { cat: "项目", q: "你的项目和生产级还差什么？", a: "主动说差距：真实流量与数据规模、权限与合规、SLO 与容灾、成本与配额、模型版本管理、评测闭环、灰度和回滚。然后说你已经做了哪些（Docker、trace、限流、评测），还计划做什么。诚实比硬吹加分。" }
 ];
-
-window.EXTRA_RESOURCES = [
-  { title: "Python 官方 Tutorial", url: "https://docs.python.org/3/tutorial/", note: "先把语言迁移做完，不要从头学编程", tag: "Python", phase: 0 },
-  { title: "uv 文档", url: "https://docs.astral.sh/uv/", note: "现代 Python 项目管理，替代 pip/venv/poetry 的一部分", tag: "工具", phase: 0 },
-  { title: "FastAPI Tutorial", url: "https://fastapi.tiangolo.com/tutorial/", note: "从请求校验到依赖注入、流式响应", tag: "后端", phase: 0 },
-  { title: "Pydantic v2 文档", url: "https://docs.pydantic.dev/latest/", note: "结构化输出与配置管理的基础", tag: "后端", phase: 0 },
-  { title: "Illustrated Transformer", url: "https://jalammar.github.io/illustrated-transformer/", note: "用图理解 attention 和 Transformer", tag: "LLM", phase: 1 },
-  { title: "Hugging Face NLP Course", url: "https://huggingface.co/learn/nlp-course", note: "tokenizer、模型、微调的系统入门", tag: "LLM", phase: 1 },
-  { title: "OpenAI Prompt Engineering", url: "https://platform.openai.com/docs/guides/prompt-engineering", note: "结构化、few-shot、评测思路", tag: "Prompt", phase: 1 },
-  { title: "Anthropic Prompt Engineering", url: "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview", note: "清晰指令、XML 标签、示例设计", tag: "Prompt", phase: 1 },
-  { title: "pgvector", url: "https://github.com/pgvector/pgvector", note: "Postgres 向量检索，项目一的核心存储", tag: "RAG", phase: 2 },
-  { title: "RAGAS 文档", url: "https://docs.ragas.io/", note: "RAG 评测指标与数据集构造", tag: "RAG", phase: 2 },
-  { title: "BAAI/bge-m3", url: "https://huggingface.co/BAAI/bge-m3", note: "多语言 embedding，适合中文知识库", tag: "RAG", phase: 2 },
-  { title: "BAAI/bge-reranker-v2-m3", url: "https://huggingface.co/BAAI/bge-reranker-v2-m3", note: "中文 rerank 常用模型", tag: "RAG", phase: 2 },
-  { title: "LangGraph 文档", url: "https://langchain-ai.github.io/langgraph/", note: "状态图、checkpoint、human-in-the-loop", tag: "Agent", phase: 3 },
-  { title: "Anthropic: Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents", note: "什么时候该用工作流、什么时候用 Agent", tag: "Agent", phase: 3 },
-  { title: "ReAct 论文", url: "https://arxiv.org/abs/2210.03629", note: "Reason + Act 的原始论文，读摘要和例子即可", tag: "Agent", phase: 3 },
-  { title: "Langfuse", url: "https://langfuse.com/docs", note: "LLM trace、评测、成本观测", tag: "可观测性", phase: 3 },
-  { title: "Hugging Face PEFT", url: "https://huggingface.co/docs/peft", note: "LoRA/QLoRA 的工程实现", tag: "微调", phase: 4 },
-  { title: "Unsloth", url: "https://docs.unsloth.ai/", note: "单卡/Colab 微调的实用工具", tag: "微调", phase: 4 },
-  { title: "vLLM", url: "https://docs.vllm.ai/", note: "高吞吐推理与 OpenAI 兼容服务", tag: "部署", phase: 4 },
-  { title: "Spring AI", url: "https://docs.spring.io/spring-ai/reference/", note: "Java 生态接入 LLM 的官方参考", tag: "Java", phase: 4 },
-  { title: "LangChain4j", url: "https://docs.langchain4j.dev/", note: "Java 版 LangChain，适合企业集成", tag: "Java", phase: 4 },
-  { title: "Hello Interview", url: "https://www.hellointerview.com/", note: "系统设计面试的框架与题库", tag: "面试", phase: 5 },
-  { title: "NeetCode 150", url: "https://neetcode.io/practice", note: "按模式刷题，不要随机刷", tag: "算法", phase: 5 },
-  { title: "OWASP LLM Top 10", url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/", note: "Prompt 注入、数据泄露、供应链风险", tag: "安全", phase: 5 }
-];

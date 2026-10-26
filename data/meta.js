@@ -1,6 +1,6 @@
 /* 全局元数据：阶段、项目规格、Java 迁移地图、术语表、面试题库 */
 window.APP_META = {
-  version: "1.0",
+  version: "1.1",
   title: "AI 跃迁",
   subtitle: "Java 后端 → AI 开发工程师",
   startDate: "2026-10-26",

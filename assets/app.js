@@ -9,7 +9,7 @@
   const WEEKS = (window.CURRICULUM || []).slice();
   const QUIZ = (window.QUIZ_BANK || []).slice();
   const INTERVIEW = window.INTERVIEW_BANK || [];
-  const EXTRA_RESOURCES = window.EXTRA_RESOURCES || [];
+  const KNOWLEDGE = window.KNOWLEDGE || { weeks: [], byDay: {} };
   const STORE_KEY = "ai-jump-coach-v1";
   const DAY_MS = 86400000;
   const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -455,6 +455,42 @@
   }
 
   /* ---------------- today / day view ---------------- */
+  function knowledgeForDay(id) {
+    return (KNOWLEDGE.byDay && KNOWLEDGE.byDay[id]) || null;
+  }
+
+  function knowledgeCard(day) {
+    const item = knowledgeForDay(day.id);
+    if (!item) return "";
+    const points = (item.points || []).slice(0, 3);
+    return '<section class="knowledge-card">' +
+      '<div class="kc-main"><div class="kc-kicker">' + icon("book") + "TODAY'S NOTE · W" + pad2(day.week) + " D" + day.day + "</div>" +
+      "<h2>" + esc(item.title) + "</h2>" +
+      '<p class="kc-summary">' + esc(item.summary || "先读知识点，再去做任务；做完回来补常见坑。") + "</p>" +
+      (points.length ? '<ul class="kc-points">' + points.map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "") +
+      '<div class="kc-foot"><span>' + icon("check") + (item.tasks ? item.tasks.length : day.tasks.length) + " 个任务关联</span><span>" + icon("note") + "知识库 · " + esc(item.file) + "</span></div></div>" +
+      '<div class="kc-side"><button class="btn btn-primary" data-action="open-knowledge" data-day="' + day.id + '">' + icon("book") + "读完整笔记</button>" +
+      '<span>含概念、代码、坑与面试口述</span></div></section>';
+  }
+
+  function openKnowledge(dayId) {
+    const item = knowledgeForDay(dayId);
+    if (!item) { toast("这一天的知识笔记还没生成"); return; }
+    const all = KNOWLEDGE.weeks.flatMap((w) => w.days);
+    const at = all.findIndex((x) => x.id === item.id);
+    const prev = at > 0 ? all[at - 1] : null;
+    const next = at >= 0 && at < all.length - 1 ? all[at + 1] : null;
+    openModal('<div class="modal-head knowledge-modal-head"><div><div class="eyebrow"><span class="line"></span>W' + pad2(item.week) + " · DAY " + item.day + " · KNOWLEDGE NOTE</div>" +
+      "<h2>" + esc(item.title) + "</h2><p>" + esc(item.summary || "") + "</p></div>" +
+      '<button class="icon-btn" data-action="modal-close" aria-label="关闭">' + icon("x") + "</button></div>" +
+      '<div class="modal-body"><div class="knowledge-meta"><span class="chip chip-teal">' + icon("book") + "本地 Markdown</span><span class=\"chip\">" + esc(item.file) + "</span><span class=\"chip\">" + (item.tasks ? item.tasks.length : 0) + " 个任务关联</span></div>" +
+      '<article class="knowledge-body">' + item.html + "</article>" +
+      '<div class="knowledge-tasks"><b>' + icon("target") + "对应今日任务</b><ol>" + (item.tasks || []).map((t) => "<li>" + esc(t) + "</li>").join("") + "</ol></div></div>" +
+      '<div class="knowledge-foot"><button class="btn btn-sm btn-soft" data-action="open-knowledge" data-day="' + (prev ? prev.id : "") + '" ' + (prev ? "" : "disabled") + ">" + icon("arrow-left") + "上一节</button>" +
+      '<span class="mono">' + (at + 1) + " / " + all.length + "</span>" +
+      '<button class="btn btn-sm btn-soft" data-action="open-knowledge" data-day="' + (next ? next.id : "") + '" ' + (next ? "" : "disabled") + ">下一节" + icon("arrow-right") + "</button></div>", "knowledge-modal");
+  }
+
   function renderToday() {
     const idx = currentIndex();
     if (idx < 0) return renderPrep();
@@ -578,9 +614,10 @@
       '<span class="chip chip-teal">' + icon("spark") + "产出：" + esc(day.deliverable) + "</span></div></div>" +
       '<div class="hero-ring">' + ring(prog.pct, 132, Math.round(prog.pct * 100) + "%", "任务完成") +
       '<span>' + prog.done + " / " + prog.total + " 个任务</span></div></div></div>" +
+      knowledgeCard(day) +
 
       '<div class="today-grid"><div>' +
-      '<section class="panel"><div class="panel-head"><h2>今日任务</h2><div class="task-progress"><div class="progress"><span style="width:' + (prog.pct * 100) + '%"></span></div><b>' + prog.done + "/" + prog.total + "</b></div></div>" +
+      '<section class="panel"><div class="panel-head"><h2>今日任务</h2><div style="display:flex;align-items:center;gap:10px"><button class="btn btn-sm btn-ghost" data-action="open-knowledge" data-day="' + day.id + '">' + icon("book") + "边做边看</button><div class=\"task-progress\"><div class=\"progress\"><span style=\"width:" + (prog.pct * 100) + '%"></span></div><b>' + prog.done + "/" + prog.total + "</b></div></div></div>" +
       '<div class="panel-body"><div class="task-list">' + tasksHtml + "</div></div></section>" +
 
       '<section class="panel" style="margin-top:16px"><div class="panel-head"><h2>3-2-1 复盘</h2><span class="meta">自动保存 · 写得越具体，复习越有用</span></div>' +
@@ -664,16 +701,10 @@
           '<span class="week-chevron">' + icon("chevron") + "</span></span></button>" +
           '<div class="week-detail"><div class="week-goal"><b>本周目标：</b>' + esc(w.goal) + "</div>" +
           '<div class="day-grid">' + w.days.map(dayMini).join("") + "</div>" +
-          '<div class="section-head" style="margin:16px 0 8px"><h2 style="font-size:12px">本周资源 <span>READING</span></h2></div>' +
-          '<div class="resource-grid">' + (w.resources || []).map(resourceCard).join("") + "</div>" +
+          '<div class="week-knowledge"><div><b>本周知识笔记</b><span>7 节 · 概念、代码、常见坑与面试口述</span></div>' +
+          '<button class="btn btn-sm" data-action="open-knowledge" data-day="w' + pad2(w.week) + 'd1">' + icon("book") + "打开 W" + pad2(w.week) + " 笔记</button></div>" +
           "</div></div>";
       }).join("") + "</div></div>";
-  }
-
-  function resourceCard(r) {
-    return '<a class="resource-card" href="' + esc(r.url || "#") + '" target="_blank" rel="noopener noreferrer">' +
-      '<span class="resource-icon">' + icon("book") + "</span><span><b>" + esc(r.title) + "</b><p>" + esc(r.note || "") + "</p>" +
-      '<span class="rmeta">' + icon("external") + "打开资源</span></span></a>";
   }
 
   /* ---------------- dashboard ---------------- */
@@ -1286,41 +1317,51 @@
   }
 
   /* ---------------- library ---------------- */
-  let libraryTab = "resources";
-  let libraryPhase = "all";
+  let libraryTab = "knowledge";
   let glossaryQuery = "";
+  let knowledgeQuery = "";
 
-  function allResources() {
-    const map = new Map();
-    EXTRA_RESOURCES.forEach((r) => map.set(r.url || r.title, { ...r, phase: r.phase == null ? 0 : r.phase }));
-    PLAN.weeks.forEach((w) => {
-      (w.resources || []).forEach((r) => {
-        const key = r.url || r.title;
-        if (!map.has(key)) map.set(key, { ...r, phase: w.phase });
-      });
-    });
-    return Array.from(map.values());
+  function knowledgeWeekCard(w) {
+    const title = w.title.replace(/^W\d+\s*·\s*/, "");
+    return '<section class="knowledge-week"><div class="kw-head">' +
+      '<span class="week-badge"><b>' + w.week + "</b><span>WEEK</span></span>" +
+      '<div class="kw-title"><h3>W' + pad2(w.week) + " · " + esc(title) + "</h3><p>" + w.days.length + " 节 · 概念 / 代码 / 坑 / 面试口述</p></div>" +
+      '<button class="btn btn-sm btn-soft" data-action="open-knowledge" data-day="' + w.days[0].id + '">' + icon("book") + "阅读</button></div>" +
+      '<div class="kw-days">' + w.days.map((d) =>
+        '<button class="kw-day" data-action="open-knowledge" data-day="' + d.id + '"><span class="kd-num">D' + d.day + "</span>" +
+        '<span class="kd-main"><b>' + esc(d.title) + "</b><em>" + esc(d.summary) + "</em></span>" + icon("arrow-right") + "</button>"
+      ).join("") + "</div></section>";
+  }
+
+  function knowledgeResultsHtml(q) {
+    const query = String(q || "").trim().toLowerCase();
+    if (!query) return "";
+    const results = [];
+    KNOWLEDGE.weeks.forEach((w) => w.days.forEach((d) => {
+      const hay = [d.title, d.summary, (d.points || []).join(" "), d.markdown].join(" ").toLowerCase();
+      if (hay.includes(query)) results.push(d);
+    }));
+    if (!results.length) return '<div class="empty" style="padding:30px"><div class="empty-icon">' + icon("book") + "</div><h3>没找到</h3><p>换个关键词试试：RAG、HNSW、LoRA、SSE、多租户……</p></div>";
+    return '<div class="kr-count">找到 ' + results.length + " 节笔记</div>" + results.slice(0, 24).map((d) =>
+      '<button class="knowledge-result" data-action="open-knowledge" data-day="' + d.id + '"><span class="kr-week">W' + pad2(d.week) + " · D" + d.day + "</span>" +
+      "<b>" + esc(d.title) + "</b><em>" + esc(d.summary) + "</em>" + icon("arrow-right") + "</button>"
+    ).join("");
   }
 
   function renderLibrary() {
-    const tabs = [["resources", "资源库"], ["projects", "项目规格"], ["java", "Java 优势"], ["glossary", "术语表"]];
-    const res = allResources();
-    const filtered = libraryPhase === "all" ? res : res.filter((r) => r.phase === Number(libraryPhase));
+    const tabs = [["knowledge", "知识库"], ["projects", "项目规格"], ["java", "Java 优势"], ["glossary", "术语表"]];
+    const totalNotes = KNOWLEDGE.weeks.reduce((n, w) => n + w.days.length, 0);
     return '<div class="view">' +
-      '<div class="page-head"><div><div class="eyebrow"><span class="line"></span>LIBRARY · 资料与规格</div>' +
-      "<h1>少而精，随时查。</h1><p>资源、项目验收标准、Java 迁移地图和术语表。不要收藏一堆课，先把项目做完。</p></div>" +
+      '<div class="page-head"><div><div class="eyebrow"><span class="line"></span>LIBRARY · 知识库与规格</div>' +
+      "<h1>把知识，变成自己的话。</h1><p>16 篇本地 Markdown 周笔记，112 节知识卡，和每天的任务一一对应。不再收藏外链，直接读、直接做。</p></div>" +
       '<div class="page-actions"><div class="tabs">' + tabs.map(([id, label]) => '<button class="tab ' + (libraryTab === id ? "active" : "") + '" data-action="lib-tab" data-tab="' + id + '">' + label + "</button>").join("") + "</div></div></div>" +
 
-      '<div class="tab-panel ' + (libraryTab === "resources" ? "active" : "") + '">' +
-      '<div class="page-actions" style="margin-bottom:14px;flex-wrap:wrap"><button class="btn btn-sm ' + (libraryPhase === "all" ? "btn-primary" : "") + '" data-action="lib-phase" data-phase="all">全部</button>' +
-      (META.phases || []).map((p) => '<button class="btn btn-sm ' + (String(libraryPhase) === String(p.id) ? "btn-primary" : "") + '" data-action="lib-phase" data-phase="' + p.id + '">P' + p.id + " · " + esc(p.name) + "</button>").join("") + "</div>" +
-      (libraryPhase === "all"
-        ? (META.phases || []).map((p) => {
-          const items = filtered.filter((r) => r.phase === p.id);
-          if (!items.length) return "";
-          return '<div class="section-head"><h2>' + esc(p.name) + ' <span>P' + p.id + " · " + items.length + " 个资源</span></h2></div><div class=\"resource-grid\">" + items.map(resourceCard).join("") + "</div>";
-        }).join("")
-        : '<div class="resource-grid">' + filtered.map(resourceCard).join("") + "</div>") +
+      '<div class="tab-panel ' + (libraryTab === "knowledge" ? "active" : "") + '">' +
+      '<div class="knowledge-intro"><div><div class="eyebrow"><span class="line"></span>LOCAL MARKDOWN</div><h2>' + totalNotes + " 节知识卡，全部在本地</h2><p>每节包含：一句话、核心知识、速查/代码、常见坑、面试口述。先读当天小节，再去做任务。</p></div>" +
+      '<div class="ki-stats"><div><b>16</b><span>周笔记</span></div><div><b>' + totalNotes + '</b><span>节知识卡</span></div><div><b>112</b><span>天任务关联</span></div></div></div>' +
+      '<div class="page-actions" style="margin:16px 0 4px"><div class="search-box" style="width:min(520px,100%)">' + icon("quiz") + '<input type="search" data-knowledge-search placeholder="搜索知识点：RAG、HNSW、SSE、多租户、LoRA..." value="' + esc(knowledgeQuery) + '" /></div></div>' +
+      '<div id="knowledge-results" class="knowledge-results">' + knowledgeResultsHtml(knowledgeQuery) + "</div>" +
+      '<div id="knowledge-weeks" class="knowledge-grid" ' + (knowledgeQuery.trim() ? 'style="display:none"' : "") + ">" + KNOWLEDGE.weeks.map(knowledgeWeekCard).join("") + "</div>" +
       "</div>" +
 
       '<div class="tab-panel ' + (libraryTab === "projects" ? "active" : "") + '">' +
@@ -1520,6 +1561,10 @@
       startQuiz(el.dataset.mode, { day: el.dataset.day, week: el.dataset.week });
       return;
     }
+    if (action === "open-knowledge") {
+      openKnowledge(el.dataset.day);
+      return;
+    }
     if (action === "quiz-select") {
       if (!quizSession) return;
       const ans = quizSession.answers[quizSession.index];
@@ -1689,7 +1734,6 @@
       return;
     }
     if (action === "lib-tab") { libraryTab = el.dataset.tab; render(); return; }
-    if (action === "lib-phase") { libraryPhase = el.dataset.phase; render(); return; }
     if (action === "reveal-card") { reviewRevealed = true; render(); return; }
     if (action === "rate-card") {
       const id = el.dataset.id;
@@ -1761,6 +1805,14 @@
       return;
     }
     if (t.matches("[data-note-search]")) { renderNoteResults(t.value); return; }
+    if (t.matches("[data-knowledge-search]")) {
+      knowledgeQuery = t.value;
+      const box = $("#knowledge-results");
+      const weeks = $("#knowledge-weeks");
+      if (box) box.innerHTML = knowledgeResultsHtml(knowledgeQuery);
+      if (weeks) weeks.style.display = knowledgeQuery.trim() ? "none" : "";
+      return;
+    }
     if (t.matches("[data-glossary-search]")) {
       glossaryQuery = t.value;
       const body = $("#glossary-body");
