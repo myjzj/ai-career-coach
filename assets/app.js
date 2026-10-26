@@ -10,6 +10,7 @@
   const QUIZ = (window.QUIZ_BANK || []).slice();
   const INTERVIEW = window.INTERVIEW_BANK || [];
   const KNOWLEDGE = window.KNOWLEDGE || { weeks: [], byDay: {} };
+  const QUICK_QUIZ = window.QUICK_QUIZ || [];
   const STORE_KEY = "ai-jump-coach-v1";
   const DAY_MS = 86400000;
   const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -94,6 +95,7 @@
       stories: {},
       prep: {},
       interviewMastered: {},
+      knowledgeRead: {},
       meta: { createdAt: todayStr(), lastOpen: todayStr() }
     };
   }
@@ -116,6 +118,7 @@
         stories: parsed.stories || {},
         prep: parsed.prep || {},
         interviewMastered: parsed.interviewMastered || {},
+        knowledgeRead: parsed.knowledgeRead || {},
         meta: { ...base.meta, ...(parsed.meta || {}) }
       };
     } catch (e) {
@@ -210,7 +213,35 @@
     ds.notes = { learned: "", questions: "", action: "", ...(ds.notes || {}) };
     ds.minutes = Number(ds.minutes) || 0;
     ds.oral = { revealed: false, rating: 0, ...(ds.oral || {}) };
+    ds.quick = ds.quick || null;
     return ds;
+  }
+
+  function isKnowledgeRead(id) { return !!state.knowledgeRead[id]; }
+  function hasKnowledge(day) { return !!knowledgeForDay(day.id); }
+  function markKnowledgeRead(id, value) {
+    if (value) state.knowledgeRead[id] = true;
+    else delete state.knowledgeRead[id];
+  }
+  function toggleKnowledgeRead(id) {
+    const next = !isKnowledgeRead(id);
+    markKnowledgeRead(id, next);
+    saveState();
+    const modal = $(".knowledge-modal");
+    if (modal) openKnowledge(id);
+    else render();
+    toast(next ? "已标记为已读" : "已取消已读");
+  }
+  function quickQuizItemsForDay(day) {
+    if (!day) return [];
+    let base = QUIZ.filter((q) => q.week === day.week && q.day === day.day).slice(0, 2);
+    if (base.length < 2) {
+      base = seededShuffle(QUIZ.filter((q) => q.week === day.week), day.week * 31 + 7).slice(0, 2);
+    }
+    const items = base.map(mcqItem);
+    const extra = QUICK_QUIZ.find((q) => q.dayId === day.id);
+    if (extra) items.push(mcqItem(extra));
+    return items.slice(0, 3);
   }
 
   function taskDone(ds, i) { return !!(ds.tasks && ds.tasks[i]); }
@@ -228,7 +259,8 @@
     const notes = Object.values(ds.notes || {}).some((v) => String(v || "").trim().length > 0);
     const quiz = !!ds.quiz;
     const oral = ds.oral && ds.oral.rating > 0;
-    return tasks > 0 || notes || quiz || oral || !!ds.completed;
+    const read = isKnowledgeRead(day.id);
+    return tasks > 0 || notes || quiz || oral || read || !!ds.completed;
   }
   function calcStreak() {
     let idx = currentIndex();
@@ -275,6 +307,7 @@
   /* ---------------- quiz data ---------------- */
   const QUIZ_INDEX = {};
   QUIZ.forEach((q) => { QUIZ_INDEX[q.id] = q; });
+  QUICK_QUIZ.forEach((q) => { QUIZ_INDEX[q.id] = q; });
 
   function mcqItem(q) {
     return { kind: "mcq", id: q.id, q: q.q, options: q.options, answer: q.answer, explain: q.explain, topic: q.topic, week: q.week, day: q.day };
@@ -463,13 +496,16 @@
     const item = knowledgeForDay(day.id);
     if (!item) return "";
     const points = (item.points || []).slice(0, 3);
-    return '<section class="knowledge-card">' +
-      '<div class="kc-main"><div class="kc-kicker">' + icon("book") + "TODAY'S NOTE · W" + pad2(day.week) + " D" + day.day + "</div>" +
+    const read = isKnowledgeRead(day.id);
+    return '<section class="knowledge-card ' + (read ? "is-read" : "") + '">' +
+      '<div class="kc-main"><div class="kc-kicker">' + icon("book") + "TODAY'S NOTE · W" + pad2(day.week) + " D" + day.day +
+      (read ? '<span class="kc-read-tag">已读</span>' : '<span class="kc-read-tag unread">未读</span>') + "</div>" +
       "<h2>" + esc(item.title) + "</h2>" +
       '<p class="kc-summary">' + esc(item.summary || "先读知识点，再去做任务；做完回来补常见坑。") + "</p>" +
       (points.length ? '<ul class="kc-points">' + points.map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "") +
       '<div class="kc-foot"><span>' + icon("check") + (item.tasks ? item.tasks.length : day.tasks.length) + " 个任务关联</span><span>" + icon("note") + "知识库 · " + esc(item.file) + "</span></div></div>" +
       '<div class="kc-side"><button class="btn btn-primary" data-action="open-knowledge" data-day="' + day.id + '">' + icon("book") + "读完整笔记</button>" +
+      '<button class="btn btn-sm ' + (read ? "btn-soft" : "") + '" data-action="toggle-knowledge-read" data-day="' + day.id + '">' + icon(read ? "check" : "plus") + (read ? "已读" : "标记已读") + "</button>" +
       '<span>含概念、代码、坑与面试口述</span></div></section>';
   }
 
@@ -480,10 +516,16 @@
     const at = all.findIndex((x) => x.id === item.id);
     const prev = at > 0 ? all[at - 1] : null;
     const next = at >= 0 && at < all.length - 1 ? all[at + 1] : null;
+    const read = isKnowledgeRead(item.id);
+    const quick = getDayState(item.id).quick;
     openModal('<div class="modal-head knowledge-modal-head"><div><div class="eyebrow"><span class="line"></span>W' + pad2(item.week) + " · DAY " + item.day + " · KNOWLEDGE NOTE</div>" +
       "<h2>" + esc(item.title) + "</h2><p>" + esc(item.summary || "") + "</p></div>" +
       '<button class="icon-btn" data-action="modal-close" aria-label="关闭">' + icon("x") + "</button></div>" +
-      '<div class="modal-body"><div class="knowledge-meta"><span class="chip chip-teal">' + icon("book") + "本地 Markdown</span><span class=\"chip\">" + esc(item.file) + "</span><span class=\"chip\">" + (item.tasks ? item.tasks.length : 0) + " 个任务关联</span></div>" +
+      '<div class="modal-body"><div class="knowledge-meta"><span class="chip chip-teal">' + icon("book") + "本地 Markdown</span><span class=\"chip\">" + esc(item.file) + "</span><span class=\"chip\">" + (item.tasks ? item.tasks.length : 0) + " 个任务关联</span>" +
+      (read ? '<span class="chip chip-ok">' + icon("check") + "已读</span>" : '<span class="chip">未读</span>') + "</div>" +
+      '<div class="knowledge-toolbar"><button class="btn btn-sm btn-accent" data-action="start-quiz" data-mode="quick" data-day="' + item.id + '">' + icon("quiz") + "随堂小测 · 3 题</button>" +
+      '<button class="btn btn-sm ' + (read ? "btn-soft" : "") + '" data-action="toggle-knowledge-read" data-day="' + item.id + '">' + icon(read ? "check" : "plus") + (read ? "已读" : "标记已读") + "</button>" +
+      '<span class="mono">' + (quick ? "上次 " + fmtPct(quick.best) + " · " + quick.attempts + " 次" : "读完立即测") + "</span></div>" +
       '<article class="knowledge-body">' + item.html + "</article>" +
       '<div class="knowledge-tasks"><b>' + icon("target") + "对应今日任务</b><ol>" + (item.tasks || []).map((t) => "<li>" + esc(t) + "</li>").join("") + "</ol></div></div>" +
       '<div class="knowledge-foot"><button class="btn btn-sm btn-soft" data-action="open-knowledge" data-day="' + (prev ? prev.id : "") + '" ' + (prev ? "" : "disabled") + ">" + icon("arrow-left") + "上一节</button>" +
@@ -573,6 +615,8 @@
     const phase = day.phaseInfo;
     const isWeekly = day.day === 7;
     const quizName = isWeekly ? "本周周测" : "今日测验";
+    const hasK = hasKnowledge(day);
+    const kread = isKnowledgeRead(day.id);
 
     const tasksHtml = day.tasks.map((t, i) => {
       const done = taskDone(ds, i);
@@ -598,7 +642,9 @@
 
     const finishCopy = ds.completed
       ? "已完成今日学习 · " + (ds.completedAt ? timeAgo(ds.completedAt) : "")
-      : (prog.all ? "所有任务已完成，可以打卡了" : "还差 " + (prog.total - prog.done) + " 个任务，先完成最低线也可以");
+      : (prog.all
+        ? (hasK && !kread ? "任务完成，先读知识卡并标记已读" : "所有任务已完成，可以打卡了")
+        : "还差 " + (prog.total - prog.done) + " 个任务，先完成最低线也可以");
 
     return '<div class="view">' +
       '<div class="page-head"><div><div class="eyebrow"><span class="line"></span>' +
@@ -636,7 +682,8 @@
       '<button class="btn btn-sm ' + (oralRating === 2 ? "on" : "") + '" data-action="rate-oral" data-day="' + day.id + '" data-rating="2">讲清楚了</button>' +
       "</div></div></div></div>" +
       '<div class="finish-bar"><div class="finish-copy"><div class="finish-icon">' + icon(ds.completed ? "check" : "target") + "</div><div><b>" + esc(finishCopy) + "</b><span>" +
-      (ds.quiz ? (isWeekly ? "周测最高 " : "测验最高 ") + fmtPct(ds.quiz.best) + (ds.quiz.best >= 0.8 ? " · 已通过" : " · 未达 80%") : "还没做" + quizName) + "</span></div></div>" +
+      (ds.quiz ? (isWeekly ? "周测最高 " : "测验最高 ") + fmtPct(ds.quiz.best) + (ds.quiz.best >= 0.8 ? " · 已通过" : " · 未达 80%") : "还没做" + quizName) +
+      (hasK ? " · 知识卡" + (kread ? "已读" : "未读") : "") + "</span></div></div>" +
       (ds.completed
         ? '<button class="btn btn-sm btn-soft" data-action="start-quiz" data-mode="daily" data-day="' + day.id + '">' + icon("quiz") + "再测一次</button>"
         : '<button class="btn btn-sm btn-primary" data-action="complete-day" data-day="' + day.id + '" ' + (prog.done === 0 ? "disabled" : "") + ">" + icon("check") + "完成今日</button>") +
@@ -721,7 +768,8 @@
       const tasks = Object.values(ds.tasks || {}).filter(Boolean).length;
       const hasQuiz = ds.quiz ? 1 : 0;
       const hasNote = Object.values(ds.notes || {}).some((v) => String(v || "").trim()) ? 1 : 0;
-      const score = tasks + hasQuiz + hasNote + (ds.completed ? 1 : 0);
+      const hasRead = isKnowledgeRead(d.id) ? 1 : 0;
+      const score = tasks + hasQuiz + hasNote + hasRead + (ds.completed ? 1 : 0);
       const level = score === 0 ? "" : score <= 2 ? "l1" : score <= 4 ? "l2" : score <= 6 ? "l3" : "l4";
       const future = d.date > todayStr() ? "future" : "";
       return '<div class="hm-cell ' + level + " " + future + '" title="' + d.date + " · " + tasks + "/" + d.tasks.length + " 任务 · " + (ds.minutes || 0) + ' 分钟" data-date="' + d.date + '"></div>';
@@ -797,6 +845,7 @@
     let html = '<div class="quiz-stat-row"><span>当前</span><b>' + esc(day.id) + "</b></div>";
     html += '<div class="quiz-stat-row"><span>今日主题</span><b style="max-width:190px;text-align:right;font-family:var(--sans);font-size:11px">' + esc(day.title) + "</b></div>";
     html += '<div class="quiz-stat-row"><span>到期复习</span><b>' + due + " 张</b></div>";
+    html += '<div class="quiz-stat-row"><span>知识卡已读</span><b>' + Object.keys(state.knowledgeRead).filter((id) => KNOWLEDGE.byDay[id]).length + " / " + Object.keys(KNOWLEDGE.byDay).length + "</b></div>";
     html += '<div class="quiz-stat-row"><span>待重练错题</span><b>' + wrong + " 道</b></div>";
     html += '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:13px"><a class="btn btn-sm btn-primary" href="#/today">继续今日</a>';
     if (due) html += '<a class="btn btn-sm" href="#/review">去复习</a>';
@@ -909,7 +958,13 @@
     const items = [];
     let title = "测验";
     let dayId = null;
-    if (mode === "daily") {
+    if (mode === "quick") {
+      const day = PLAN.byId[opts.day] || currentDay() || PLAN.days[0];
+      if (!day) return;
+      dayId = day.id;
+      title = "随堂小测 · " + day.id;
+      items.push(...quickQuizItemsForDay(day));
+    } else if (mode === "daily") {
       const day = PLAN.byId[opts.day] || currentDay() || PLAN.days[0];
       if (!day) return;
       dayId = day.id;
@@ -930,12 +985,12 @@
       items.push(...seededShuffle(QUIZ, Date.now() % 100000).slice(0, 10).map(mcqItem));
     }
     if (!items.length) { toast("暂时没有可用的题目"); return; }
-    startQuizWithItems(items, title, dayId);
+    startQuizWithItems(items, title, dayId, mode);
   }
 
-  function startQuizWithItems(items, title, dayId) {
+  function startQuizWithItems(items, title, dayId, mode) {
     quizSession = {
-      items, title, dayId, index: 0, finished: false, saved: false,
+      items, title, dayId, mode: mode || "custom", index: 0, finished: false, saved: false,
       startedAt: Date.now(), selected: null, showRef: false,
       answers: items.map((it) => it.kind === "mcq"
         ? { kind: "mcq", item: it, selected: null, submitted: false, correct: null, score: 0 }
@@ -1014,16 +1069,22 @@
 
   function quizResultHtml() {
     const { earned, total, p } = quizScore();
-    const pass = p >= 0.8;
+    const isQuick = quizSession.mode === "quick";
+    const pass = p >= (isQuick ? 2 / 3 - 1e-9 : 0.8);
     const mcq = quizSession.answers.filter((a) => a.kind === "mcq");
     const oral = quizSession.answers.filter((a) => a.kind === "oral");
     const correct = mcq.filter((a) => a.correct).length;
     const wrong = quizSession.answers.filter((a) => (a.kind === "mcq" && !a.correct) || (a.kind === "oral" && a.rating < 2));
     const minutes = Math.max(1, Math.round((Date.now() - quizSession.startedAt) / 60000));
+    const statsHtml = isQuick
+      ? '<div class="result-stats"><div><b>' + correct + "/" + mcq.length + "</b><span>选择题</span></div><div><b>" + minutes + "m</b><span>用时</span></div><div><b>" + earned + "/" + total + "</b><span>总得分</span></div></div>"
+      : '<div class="result-stats"><div><b>' + correct + "/" + mcq.length + "</b><span>选择题</span></div><div><b>" + (oral.length ? (oral.reduce((n, a) => n + (a.score || 0), 0)).toFixed(1) + "/" + oral.length : "—") + "</b><span>口述得分</span></div><div><b>" + minutes + "m</b><span>用时</span></div><div><b>" + earned + "/" + total + "</b><span>总得分</span></div></div>";
     return '<div class="result">' + ring(p, 132, Math.round(p * 100) + "%", pass ? "PASS" : "RETRY") +
-      "<h2>" + (pass ? "过了，但别急着走。" : "没过 80%，正好知道该补哪。") + "</h2>" +
-      "<p>" + (pass ? "把刚才不确定的题再看一遍解析，然后去复习队列里清掉到期卡片。" : "先看错题解析，再点“重练错题”。连续答对 2 次，系统才会标记为掌握。") + "</p>" +
-      '<div class="result-stats"><div><b>' + correct + "/" + mcq.length + "</b><span>选择题</span></div><div><b>" + (oral.length ? (oral.reduce((n, a) => n + (a.score || 0), 0)).toFixed(1) + "/" + oral.length : "—") + "</b><span>口述得分</span></div><div><b>" + minutes + "m</b><span>用时</span></div><div><b>" + earned + "/" + total + "</b><span>总得分</span></div></div>" +
+      "<h2>" + (pass ? (isQuick ? "随堂测通过，已标记已读。" : "过了，但别急着走。") : (isQuick ? "再对一道就通过。" : "没过 80%，正好知道该补哪。")) + "</h2>" +
+      "<p>" + (pass
+        ? (isQuick ? "这道知识卡已经进入“已读”，可以去做任务了。" : "把刚才不确定的题再看一遍解析，然后去复习队列里清掉到期卡片。")
+        : (isQuick ? "答对 2 题即可通过；先看解析，再点“重练错题”。" : "先看错题解析，再点“重练错题”。连续答对 2 次，系统才会标记为掌握。")) + "</p>" +
+      statsHtml +
       '<div class="actions"><button class="btn btn-soft" data-action="quiz-close">' + icon("check") + "完成" + "</button>" +
       (wrong.length ? '<button class="btn btn-primary" data-action="quiz-retry-wrong">' + icon("review") + "重练错题 (" + wrong.length + ")" + "</button>" : "") +
       '<button class="btn btn-ghost" data-action="quiz-retry">再测一次</button></div>' +
@@ -1051,8 +1112,8 @@
 
     if (s.dayId) {
       const ds = getDayState(s.dayId);
-      const prev = ds.quiz || { best: 0, attempts: 0 };
-      ds.quiz = {
+      const prev = (s.mode === "quick" ? ds.quick : ds.quiz) || { best: 0, attempts: 0 };
+      const result = {
         best: Math.max(prev.best || 0, p),
         last: p,
         attempts: (prev.attempts || 0) + 1,
@@ -1060,6 +1121,12 @@
         total,
         score: earned
       };
+      if (s.mode === "quick") {
+        ds.quick = result;
+        if (p >= 2 / 3 - 1e-9) markKnowledgeRead(s.dayId, true);
+      } else {
+        ds.quiz = result;
+      }
       ds.lastActiveAt = now;
     }
 
@@ -1117,7 +1184,7 @@
       kind: a.kind
     }));
     if (!wrong.length) { toast("没有需要重练的题"); return; }
-    startQuizWithItems(wrong, "错题重练", null);
+    startQuizWithItems(wrong, "错题重练", quizSession.mode === "quick" ? quizSession.dayId : null, quizSession.mode);
   }
 
   /* ---------------- review ---------------- */
@@ -1323,14 +1390,16 @@
 
   function knowledgeWeekCard(w) {
     const title = w.title.replace(/^W\d+\s*·\s*/, "");
+    const readCount = w.days.filter((d) => isKnowledgeRead(d.id)).length;
     return '<section class="knowledge-week"><div class="kw-head">' +
       '<span class="week-badge"><b>' + w.week + "</b><span>WEEK</span></span>" +
-      '<div class="kw-title"><h3>W' + pad2(w.week) + " · " + esc(title) + "</h3><p>" + w.days.length + " 节 · 概念 / 代码 / 坑 / 面试口述</p></div>" +
+      '<div class="kw-title"><h3>W' + pad2(w.week) + " · " + esc(title) + "</h3><p>" + w.days.length + " 节 · 已读 " + readCount + "/" + w.days.length + "</p></div>" +
       '<button class="btn btn-sm btn-soft" data-action="open-knowledge" data-day="' + w.days[0].id + '">' + icon("book") + "阅读</button></div>" +
-      '<div class="kw-days">' + w.days.map((d) =>
-        '<button class="kw-day" data-action="open-knowledge" data-day="' + d.id + '"><span class="kd-num">D' + d.day + "</span>" +
-        '<span class="kd-main"><b>' + esc(d.title) + "</b><em>" + esc(d.summary) + "</em></span>" + icon("arrow-right") + "</button>"
-      ).join("") + "</div></section>";
+      '<div class="kw-days">' + w.days.map((d) => {
+        const read = isKnowledgeRead(d.id);
+        return '<button class="kw-day ' + (read ? "read" : "") + '" data-action="open-knowledge" data-day="' + d.id + '"><span class="kd-num">D' + d.day + "</span>" +
+          '<span class="kd-main"><b>' + esc(d.title) + "</b><em>" + esc(d.summary) + "</em></span>" + icon(read ? "check" : "arrow-right") + "</button>";
+      }).join("") + "</div></section>";
   }
 
   function knowledgeResultsHtml(q) {
@@ -1351,14 +1420,17 @@
   function renderLibrary() {
     const tabs = [["knowledge", "知识库"], ["projects", "项目规格"], ["java", "Java 优势"], ["glossary", "术语表"]];
     const totalNotes = KNOWLEDGE.weeks.reduce((n, w) => n + w.days.length, 0);
+    const readTotal = Object.keys(state.knowledgeRead).filter((id) => KNOWLEDGE.byDay[id]).length;
     return '<div class="view">' +
       '<div class="page-head"><div><div class="eyebrow"><span class="line"></span>LIBRARY · 知识库与规格</div>' +
       "<h1>把知识，变成自己的话。</h1><p>16 篇本地 Markdown 周笔记，112 节知识卡，和每天的任务一一对应。不再收藏外链，直接读、直接做。</p></div>" +
-      '<div class="page-actions"><div class="tabs">' + tabs.map(([id, label]) => '<button class="tab ' + (libraryTab === id ? "active" : "") + '" data-action="lib-tab" data-tab="' + id + '">' + label + "</button>").join("") + "</div></div></div>" +
+      '<div class="page-actions"><a class="btn btn-sm" href="print.html" target="_blank" rel="noopener">' + icon("note") + "打印 A4 复习册</a>" +
+      '<a class="btn btn-sm" href="16周知识复习册.pdf" download>' + icon("download") + "下载 PDF</a>" +
+      '<div class="tabs">' + tabs.map(([id, label]) => '<button class="tab ' + (libraryTab === id ? "active" : "") + '" data-action="lib-tab" data-tab="' + id + '">' + label + "</button>").join("") + "</div></div></div>" +
 
       '<div class="tab-panel ' + (libraryTab === "knowledge" ? "active" : "") + '">' +
       '<div class="knowledge-intro"><div><div class="eyebrow"><span class="line"></span>LOCAL MARKDOWN</div><h2>' + totalNotes + " 节知识卡，全部在本地</h2><p>每节包含：一句话、核心知识、速查/代码、常见坑、面试口述。先读当天小节，再去做任务。</p></div>" +
-      '<div class="ki-stats"><div><b>16</b><span>周笔记</span></div><div><b>' + totalNotes + '</b><span>节知识卡</span></div><div><b>112</b><span>天任务关联</span></div></div></div>' +
+      '<div class="ki-stats"><div><b>16</b><span>周笔记</span></div><div><b>' + totalNotes + '</b><span>节知识卡</span></div><div><b>' + readTotal + '</b><span>已读</span></div><div><b>112</b><span>任务关联</span></div></div></div>' +
       '<div class="page-actions" style="margin:16px 0 4px"><div class="search-box" style="width:min(520px,100%)">' + icon("quiz") + '<input type="search" data-knowledge-search placeholder="搜索知识点：RAG、HNSW、SSE、多租户、LoRA..." value="' + esc(knowledgeQuery) + '" /></div></div>' +
       '<div id="knowledge-results" class="knowledge-results">' + knowledgeResultsHtml(knowledgeQuery) + "</div>" +
       '<div id="knowledge-weeks" class="knowledge-grid" ' + (knowledgeQuery.trim() ? 'style="display:none"' : "") + ">" + KNOWLEDGE.weeks.map(knowledgeWeekCard).join("") + "</div>" +
@@ -1522,7 +1594,12 @@
       if (e.target === el) closeModal();
       return;
     }
-    if (action === "modal-close") { closeModal(); return; }
+    if (action === "modal-close") {
+      const wasKnowledge = !!$(".knowledge-modal");
+      closeModal();
+      if (wasKnowledge) render();
+      return;
+    }
 
     if (action === "toggle-task") {
       const day = PLAN.byId[el.dataset.day];
@@ -1543,6 +1620,11 @@
       const ds = getDayState(day.id);
       const p = dayProgress(day);
       if (p.done === 0) { toast("至少完成一个任务再打卡"); return; }
+      if (hasKnowledge(day) && !isKnowledgeRead(day.id)) {
+        toast("先读今日知识卡，并点「标记已读」");
+        openKnowledge(day.id);
+        return;
+      }
       if (!p.all && !confirm("还有任务没完成，仍然标记今天完成吗？")) return;
       ds.completed = true;
       ds.completedAt = new Date().toISOString();
@@ -1563,6 +1645,10 @@
     }
     if (action === "open-knowledge") {
       openKnowledge(el.dataset.day);
+      return;
+    }
+    if (action === "toggle-knowledge-read") {
+      toggleKnowledgeRead(el.dataset.day);
       return;
     }
     if (action === "quiz-select") {
@@ -1610,12 +1696,15 @@
       return;
     }
     if (action === "quiz-close") {
+      const wasQuick = quizSession && quizSession.mode === "quick";
+      const quickDay = quizSession && quizSession.dayId;
       if (quizSession && !quizSession.finished && quizSession.answers.some((a) => a.submitted)) {
         if (!confirm("测验还没完成，确定退出吗？")) return;
       }
       quizSession = null;
       closeModal();
-      render();
+      if (wasQuick && quickDay) openKnowledge(quickDay);
+      else render();
       return;
     }
     if (action === "quiz-retry") {
@@ -1623,7 +1712,8 @@
       const items = quizSession.items.slice();
       const title = quizSession.title;
       const dayId = quizSession.dayId;
-      startQuizWithItems(items, title, dayId);
+      const mode = quizSession.mode;
+      startQuizWithItems(items, title, dayId, mode);
       return;
     }
     if (action === "quiz-retry-wrong") { retryWrong(); return; }

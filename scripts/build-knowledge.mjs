@@ -144,6 +144,34 @@ function extractSection(md) {
   return { summary: cleanInline(summary), points };
 }
 
+function extractAfter(md, label, max) {
+  const lines = md.split("\n");
+  const out = [];
+  let active = false;
+  for (const line of lines) {
+    if (new RegExp("^\\*\\*" + label + "\\*\\*").test(line)) { active = true; continue; }
+    if (active && /^\*\*/.test(line)) break;
+    if (active) {
+      const m = line.match(/^\s*[-*]\s+(.*)$/);
+      if (m) out.push(cleanInline(m[1]));
+      if (out.length >= max) break;
+    }
+  }
+  return out;
+}
+
+function extractQuote(md, label) {
+  const lines = md.split("\n");
+  let active = false;
+  const out = [];
+  for (const line of lines) {
+    if (new RegExp("^\\*\\*" + label + "\\*\\*").test(line)) { active = true; continue; }
+    if (active && /^\*\*/.test(line)) break;
+    if (active && /^>\s?/.test(line)) out.push(cleanInline(line.replace(/^>\s?/, "")));
+  }
+  return out.join(" ").trim();
+}
+
 // 读取课程，用于把每日任务挂到知识卡上
 const ctx = { window: {} };
 vm.createContext(ctx);
@@ -189,6 +217,8 @@ for (const file of files) {
       title: dayTitle,
       summary,
       points,
+      pitfalls: extractAfter(body, "常见坑", 3),
+      interview: extractQuote(body, "面试口述"),
       markdown: body,
       html: mdToHtml(body),
       tasks: taskMap[id] || [],
