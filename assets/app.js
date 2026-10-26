@@ -495,18 +495,20 @@
   function knowledgeCard(day) {
     const item = knowledgeForDay(day.id);
     if (!item) return "";
-    const points = (item.points || []).slice(0, 3);
+    const points = (item.points || []).slice(0, 5);
     const read = isKnowledgeRead(day.id);
+    const words = (item.markdown || "").replace(/\s/g, "").length;
     return '<section class="knowledge-card ' + (read ? "is-read" : "") + '">' +
       '<div class="kc-main"><div class="kc-kicker">' + icon("book") + "TODAY'S NOTE · W" + pad2(day.week) + " D" + day.day +
       (read ? '<span class="kc-read-tag">已读</span>' : '<span class="kc-read-tag unread">未读</span>') + "</div>" +
       "<h2>" + esc(item.title) + "</h2>" +
       '<p class="kc-summary">' + esc(item.summary || "先读知识点，再去做任务；做完回来补常见坑。") + "</p>" +
       (points.length ? '<ul class="kc-points">' + points.map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "") +
-      '<div class="kc-foot"><span>' + icon("check") + (item.tasks ? item.tasks.length : day.tasks.length) + " 个任务关联</span><span>" + icon("note") + "知识库 · " + esc(item.file) + "</span></div></div>" +
+      ((item.deepPoints || []).length ? '<div class="kc-deep"><span class="kc-deep-label">再深入</span><ul>' + item.deepPoints.slice(0, 2).map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul></div>" : "") +
+      '<div class="kc-foot"><span>' + icon("check") + (item.tasks ? item.tasks.length : day.tasks.length) + " 个任务关联</span><span>" + icon("note") + "详细讲解 · 约 " + words + " 字</span><span>" + icon("book") + esc(item.file) + "</span></div></div>" +
       '<div class="kc-side"><button class="btn btn-primary" data-action="open-knowledge" data-day="' + day.id + '">' + icon("book") + "读完整笔记</button>" +
       '<button class="btn btn-sm ' + (read ? "btn-soft" : "") + '" data-action="toggle-knowledge-read" data-day="' + day.id + '">' + icon(read ? "check" : "plus") + (read ? "已读" : "标记已读") + "</button>" +
-      '<span>含概念、代码、坑与面试口述</span></div></section>';
+      '<span>含机制、场景、追问与代码</span></div></section>';
   }
 
   function openKnowledge(dayId) {
@@ -521,7 +523,7 @@
     openModal('<div class="modal-head knowledge-modal-head"><div><div class="eyebrow"><span class="line"></span>W' + pad2(item.week) + " · DAY " + item.day + " · KNOWLEDGE NOTE</div>" +
       "<h2>" + esc(item.title) + "</h2><p>" + esc(item.summary || "") + "</p></div>" +
       '<button class="icon-btn" data-action="modal-close" aria-label="关闭">' + icon("x") + "</button></div>" +
-      '<div class="modal-body"><div class="knowledge-meta"><span class="chip chip-teal">' + icon("book") + "本地 Markdown</span><span class=\"chip\">" + esc(item.file) + "</span><span class=\"chip\">" + (item.tasks ? item.tasks.length : 0) + " 个任务关联</span>" +
+      '<div class="modal-body"><div class="knowledge-meta"><span class="chip chip-teal">' + icon("book") + "本地 Markdown</span><span class=\"chip\">" + esc(item.file) + "</span><span class=\"chip\">约 " + (item.markdown || "").replace(/\s/g, "").length + " 字</span><span class=\"chip\">" + (item.tasks ? item.tasks.length : 0) + " 个任务关联</span>" +
       (read ? '<span class="chip chip-ok">' + icon("check") + "已读</span>" : '<span class="chip">未读</span>') + "</div>" +
       '<div class="knowledge-toolbar"><button class="btn btn-sm btn-accent" data-action="start-quiz" data-mode="quick" data-day="' + item.id + '">' + icon("quiz") + "随堂小测 · 3 题</button>" +
       '<button class="btn btn-sm ' + (read ? "btn-soft" : "") + '" data-action="toggle-knowledge-read" data-day="' + item.id + '">' + icon(read ? "check" : "plus") + (read ? "已读" : "标记已读") + "</button>" +

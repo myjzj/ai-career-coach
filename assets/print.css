@@ -104,10 +104,13 @@ body {
 .day-block b { display: block; color: var(--teal); font-size: 7pt; letter-spacing: .08em; }
 .day-block ul { margin: 1mm 0 0; padding-left: 4mm; }
 .day-block li { margin: 0.7mm 0; color: #3e3a32; font-size: 7.5pt; line-height: 1.48; }
+.day-block.deep b { color: #34618f; }
+.day-block.deep li { color: #4a5563; }
 .day-block.pitfall b { color: var(--accent); }
 .day-block.pitfall li { color: #5a5146; }
 .day-block.interview { padding: 2mm 3mm; border-left: 2px solid var(--teal); background: #f2f7f4; }
 .day-block.interview p { margin: 0.7mm 0 0; color: #3e3a32; font-size: 7.5pt; line-height: 1.5; }
+.day-block.followup p { margin: 0.7mm 0 0; color: #4a5563; font-size: 7.2pt; line-height: 1.5; }
 .day-link { margin-top: 2mm; color: #9a9282; font-family: var(--mono); font-size: 6.5pt; }
 
 .page-break { break-before: page; page-break-before: always; }

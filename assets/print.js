@@ -33,13 +33,16 @@
       "<div><h2>" + esc(title) + "</h2><p>7 节知识卡 · 先回忆，再对照</p></div></header>" +
       '<div class="week-days">' + w.days.map((d) => {
         const points = (d.points || []).map((p) => "<li>" + esc(p) + "</li>").join("");
+        const deep = (d.deepPoints || []).map((p) => "<li>" + esc(p) + "</li>").join("");
         const pitfalls = (d.pitfalls || []).map((p) => "<li>" + esc(p) + "</li>").join("");
         return '<article class="day">' +
           '<div class="day-head"><span class="check">□</span><span class="day-no">DAY ' + d.day + "</span><h3>" + esc(d.title) + "</h3></div>" +
           '<p class="day-summary">' + esc(d.summary || "") + "</p>" +
           (points ? '<div class="day-block"><b>核心知识</b><ul>' + points + "</ul></div>" : "") +
+          (deep ? '<div class="day-block deep"><b>再深入</b><ul>' + deep + "</ul></div>" : "") +
           (pitfalls ? '<div class="day-block pitfall"><b>常见坑</b><ul>' + pitfalls + "</ul></div>" : "") +
           (d.interview ? '<div class="day-block interview"><b>面试口述</b><p>' + esc(d.interview) + "</p></div>" : "") +
+          (d.followup ? '<div class="day-block followup"><b>追问</b><p>' + esc(d.followup) + "</p></div>" : "") +
           '<div class="day-link">对应任务：学习舱 ' + esc(d.id) + "（" + (d.tasks ? d.tasks.length : 0) + " 个）</div>" +
           "</article>";
       }).join("") + "</div></section>";

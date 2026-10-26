@@ -138,7 +138,7 @@ function extractSection(md) {
     if (inCore) {
       const m = line.match(/^\s*[-*]\s+(.*)$/);
       if (m) points.push(cleanInline(m[1]));
-      if (points.length >= 4) break;
+      if (points.length >= 5) break;
     }
   }
   return { summary: cleanInline(summary), points };
@@ -170,6 +170,29 @@ function extractQuote(md, label) {
     if (active && /^>\s?/.test(line)) out.push(cleanInline(line.replace(/^>\s?/, "")));
   }
   return out.join(" ").trim();
+}
+
+function extractDeep(md) {
+  const lines = md.split("\n");
+  const points = [];
+  let active = false;
+  for (const line of lines) {
+    if (/^\*\*深入理解\*\*/.test(line)) { active = true; continue; }
+    if (active && /^\*\*/.test(line)) break;
+    if (active) {
+      const m = line.match(/^\s*[-*]\s+(.*)$/);
+      if (m) points.push(cleanInline(m[1]));
+    }
+  }
+  const lineAfter = (label) => {
+    const re = new RegExp("^\\*\\*" + label + "\\*\\*[：:]\\s*(.+)$");
+    for (const line of lines) {
+      const m = line.match(re);
+      if (m) return cleanInline(m[1]);
+    }
+    return "";
+  };
+  return { deepPoints: points.slice(0, 4), scenario: lineAfter("场景"), followup: lineAfter("追问") };
 }
 
 // 读取课程，用于把每日任务挂到知识卡上
@@ -210,6 +233,7 @@ for (const file of files) {
     const body = (nl >= 0 ? part.slice(nl + 1) : "").trim();
     const id = "w" + pad2(weekNo) + "d" + dayNo;
     const { summary, points } = extractSection(body);
+    const deep = extractDeep(body);
     const item = {
       id,
       week: weekNo,
@@ -217,6 +241,9 @@ for (const file of files) {
       title: dayTitle,
       summary,
       points,
+      deepPoints: deep.deepPoints,
+      scenario: deep.scenario,
+      followup: deep.followup,
       pitfalls: extractAfter(body, "常见坑", 3),
       interview: extractQuote(body, "面试口述"),
       markdown: body,
